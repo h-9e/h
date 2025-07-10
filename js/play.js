@@ -1,12 +1,3 @@
-/*
- * @Author: wy
- * @Date: 2023-10-12 15:29:35
- * @LastEditors: wy
- * @LastEditTime: 2023-10-12 17:51:27
- * @FilePath: /笔记/song-demo/js/play.js
- * @Description:
- */
-
 const doms = {
   container: document.querySelector('.container'),
   ul: document.querySelector('.word-container'),
