@@ -3,129 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>局域网P2P传输</title>
+    <title>YiShare</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        /* 极简扁平化UI */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         body {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 0 15px;
             background: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
         }
         .container {
+            width: 100%;
+            max-width: 400px;
             background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
         }
-        h1 {
+        .header {
+            padding: 20px;
             text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 {
+            font-size: 20px;
             color: #333;
+            font-weight: 600;
+        }
+        .main {
+            padding: 25px;
+        }
+        /* 连接码区域 */
+        .code-area {
+            text-align: center;
             margin-bottom: 30px;
+        }
+        .code-text {
             font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            color: #2196F3;
+            margin: 15px 0;
         }
-        .control-group {
-            margin-bottom: 20px;
+        .qrcode {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto;
         }
-        /* 扁平化按钮 */
+        /* 输入码区域 */
+        .input-area {
+            margin-bottom: 25px;
+        }
+        .input-area input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            text-align: center;
+            letter-spacing: 3px;
+        }
+        .input-area input:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+        /* 按钮样式 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
         button {
+            flex: 1;
+            padding: 12px 0;
             border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
             background: #2196F3;
             color: white;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-right: 10px;
-            transition: background 0.2s;
         }
-        button:hover {
+        .btn-primary:hover {
             background: #1976D2;
         }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
         button:disabled {
-            background: #cccccc;
+            opacity: 0.6;
             cursor: not-allowed;
         }
-        /* 文本/文件输入区域 */
-        #textInput {
-            width: 100%;
-            height: 100px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            resize: none;
-            margin-bottom: 10px;
+        /* 文件拖放区域 */
+        .drop-area {
+            margin-top: 30px;
+            padding: 30px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .drop-area.active {
+            border-color: #2196F3;
+            background: #f8fbff;
+        }
+        .drop-area p {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
         }
         #fileInput {
             display: none;
         }
-        .file-label {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        /* 状态与接收区域 */
-        #status {
-            padding: 10px;
-            background: #f0f8ff;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            color: #333;
-        }
-        #receiveBox {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 15px;
-            min-height: 150px;
-            background: #fafafa;
-        }
-        #receiveBox h3 {
-            font-size: 18px;
-            margin-bottom: 10px;
-            color: #555;
-        }
-        .message-item {
-            padding: 8px;
-            background: white;
-            border-radius: 4px;
-            margin-bottom: 8px;
+        /* 传输列表 */
+        .transfer-list {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
         }
         .file-item {
-            padding: 8px;
-            background: #e3f2fd;
-            border-radius: 4px;
-            margin-bottom: 8px;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-info {
+            flex: 1;
+            overflow: hidden;
+        }
+        .file-name {
+            font-size: 14px;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-size {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+        .file-status {
+            font-size: 12px;
+            color: #2196F3;
+        }
+        /* 状态提示 */
+        .status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+            text-align: center;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>YiShare - 局域网P2P传输</h1>
-
-        <div id="status">状态：等待初始化...</div>
-
-        <div class="control-group">
-            <button id="startBtn">开启连接</button>
-            <label for="fileInput" class="file-label">选择文件</label>
-            <input type="file" id="fileInput">
+        <div class="header">
+            <h1>Yi互联</h1>
         </div>
+        <div class="main">
+            <!-- 连接码展示 -->
+            <div class="code-area" style="display: none;">
+                <div class="code-text" id="roomCode"></div>
+                <div class="qrcode" id="qrcode"></div>
+                <button class="btn-secondary" id="copyCodeBtn" style="margin-top: 10px; width: 100%;">复制连接码</button>
+            </div>
 
-        <div class="control-group">
-            <textarea id="textInput" placeholder="输入要发送的文字..."></textarea>
-            <button id="sendTextBtn" disabled>发送文字</button>
-        </div>
+            <!-- 输入连接码 -->
+            <div class="input-area">
+                <input type="text" id="joinCode" placeholder="输入对方连接码" maxlength="6">
+            </div>
 
-        <div id="receiveBox">
-            <h3>接收内容</h3>
+            <!-- 功能按钮 -->
+            <div class="btn-group">
+                <button class="btn-primary" id="createBtn">创建连接</button>
+                <button class="btn-secondary" id="joinBtn">加入连接</button>
+            </div>
+
+            <!-- 文件拖放/选择 -->
+            <div class="drop-area" id="dropArea" style="display: none;">
+                <div>+ 点击或拖放文件到这里</div>
+                <p>支持任意格式文件</p>
+                <input type="file" id="fileInput" multiple>
+            </div>
+
+            <!-- 传输列表 -->
+            <div class="transfer-list" id="transferList"></div>
+
+            <!-- 状态提示 -->
+            <div class="status" id="status">未建立连接</div>
         </div>
     </div>
 
@@ -133,142 +215,239 @@
         // 核心变量
         let peerConnection;
         let dataChannel;
-        const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        let roomCode = '';
+        // 存储局域网内的连接码映射（本地临时）
+        const roomMap = {};
+        const iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
         // DOM 元素
-        const startBtn = document.getElementById('startBtn');
-        const sendTextBtn = document.getElementById('sendTextBtn');
-        const textInput = document.getElementById('textInput');
+        const codeArea = document.querySelector('.code-area');
+        const roomCodeEl = document.getElementById('roomCode');
+        const qrcodeEl = document.getElementById('qrcode');
+        const joinCodeEl = document.getElementById('joinCode');
+        const createBtn = document.getElementById('createBtn');
+        const joinBtn = document.getElementById('joinBtn');
+        const dropArea = document.getElementById('dropArea');
         const fileInput = document.getElementById('fileInput');
-        const status = document.getElementById('status');
-        const receiveBox = document.getElementById('receiveBox');
+        const transferList = document.getElementById('transferList');
+        const statusEl = document.getElementById('status');
+        const copyCodeBtn = document.getElementById('copyCodeBtn');
 
-        // 初始化连接
-        startBtn.addEventListener('click', initConnection);
+        // 生成6位随机连接码
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKMNPQRSTWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
 
-        // 发送文字
-        sendTextBtn.addEventListener('click', () => {
-            const text = textInput.value.trim();
-            if (!text) return;
-            dataChannel.send(JSON.stringify({ type: 'text', data: text }));
-            addReceiveItem(`我：${text}`, 'message-item');
-            textInput.value = '';
+        // 创建连接
+        createBtn.addEventListener('click', async () => {
+            roomCode = generateRoomCode();
+            roomMap[roomCode] = {};
+            // 显示连接码和二维码
+            codeArea.style.display = 'block';
+            roomCodeEl.textContent = roomCode;
+            QRCode.toCanvas(qrcodeEl, location.href + '?code=' + roomCode, (error) => {
+                if (error) console.error(error);
+            });
+            // 初始化Peer
+            initPeer(true);
+            statusEl.textContent = '等待对方加入...';
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
         });
 
-        // 发送文件
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file || !dataChannel) return;
+        // 加入连接
+        joinBtn.addEventListener('click', async () => {
+            const code = joinCodeEl.value.trim().toUpperCase();
+            if (!code || code.length !== 6) {
+                alert('请输入6位有效连接码');
+                return;
+            }
+            roomCode = code;
+            initPeer(false);
+            statusEl.textContent = '正在加入连接...';
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+        });
+
+        // 初始化PeerConnection
+        function initPeer(isInitiator) {
+            peerConnection = new RTCPeerConnection(iceConfig);
             
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const fileData = {
-                    type: 'file',
-                    name: file.name,
-                    size: file.size,
-                    data: event.target.result
+            // 创建或监听数据通道
+            if (isInitiator) {
+                dataChannel = peerConnection.createDataChannel('fileChannel');
+                setupDataChannel();
+            } else {
+                peerConnection.ondatachannel = (e) => {
+                    dataChannel = e.channel;
+                    setupDataChannel();
                 };
-                dataChannel.send(JSON.stringify(fileData));
-                addReceiveItem(`发送文件：${file.name}`, 'file-item');
-            };
-            reader.readAsDataURL(file);
-            fileInput.value = '';
-        });
+            }
 
-        // 初始化 WebRTC 连接
-        function initConnection() {
-            peerConnection = new RTCPeerConnection(config);
-            status.textContent = '状态：正在创建连接通道...';
-
-            // 创建数据通道
-            dataChannel = peerConnection.createDataChannel('fileTransfer');
-            setupDataChannel();
-
-            // 监听 ICE 候选
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    status.textContent = `状态：请将下方候选信息发给对方\n${JSON.stringify(event.candidate)}`;
+            // ICE候选处理
+            peerConnection.onicecandidate = (e) => {
+                if (e.candidate) {
+                    // 局域网内通过roomCode交换候选（简化版：本地临时存储）
+                    if (!roomMap[roomCode].candidates) roomMap[roomCode].candidates = [];
+                    roomMap[roomCode].candidates.push(e.candidate);
+                    // 发起方创建Offer
+                    if (isInitiator && !roomMap[roomCode].offer) {
+                        createOffer();
+                    }
                 }
             };
 
-            // 监听对方创建通道
-            peerConnection.ondatachannel = (event) => {
-                dataChannel = event.channel;
-                setupDataChannel();
+            // 连接状态监听
+            peerConnection.onconnectionstatechange = () => {
+                switch (peerConnection.connectionState) {
+                    case 'connected':
+                        statusEl.textContent = '连接成功，可传输文件';
+                        dropArea.style.display = 'block';
+                        break;
+                    case 'disconnected':
+                        statusEl.textContent = '连接已断开';
+                        resetState();
+                        break;
+                    case 'failed':
+                        statusEl.textContent = '连接失败，请重试';
+                        resetState();
+                        break;
+                }
             };
+        }
 
-            // 创建offer
-            peerConnection.createOffer()
-                .then(offer => peerConnection.setLocalDescription(offer))
-                .then(() => {
-                    status.textContent = `状态：请将下方Offer发给对方\n${JSON.stringify(peerConnection.localDescription)}`;
-                    startBtn.disabled = true;
-                })
-                .catch(err => console.error('创建Offer失败:', err));
+        // 创建Offer
+        async function createOffer() {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            roomMap[roomCode].offer = offer;
+        }
+
+        // 处理Answer
+        async function handleAnswer(answer) {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
         }
 
         // 配置数据通道
         function setupDataChannel() {
             dataChannel.onopen = () => {
-                status.textContent = '状态：连接已建立，可以传输数据！';
-                sendTextBtn.disabled = false;
+                console.log('数据通道已打开');
             };
 
-            dataChannel.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'text') {
-                    addReceiveItem(`对方：${data.data}`, 'message-item');
-                } else if (data.type === 'file') {
-                    const a = document.createElement('a');
-                    a.href = data.data;
-                    a.download = data.name;
-                    a.textContent = `接收文件：${data.name} (${formatSize(data.size)})`;
-                    const item = document.createElement('div');
-                    item.className = 'file-item';
-                    item.appendChild(a);
-                    receiveBox.appendChild(item);
+            dataChannel.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.type === 'file') {
+                    receiveFile(data);
                 }
             };
 
             dataChannel.onclose = () => {
-                status.textContent = '状态：连接已关闭';
-                sendTextBtn.disabled = true;
+                statusEl.textContent = '数据通道已关闭';
             };
         }
 
-        // 添加接收内容到页面
-        function addReceiveItem(content, className) {
+        // 接收文件
+        function receiveFile(fileData) {
             const item = document.createElement('div');
-            item.className = className;
-            item.textContent = content;
-            receiveBox.appendChild(item);
-            receiveBox.scrollTop = receiveBox.scrollHeight;
+            item.className = 'file-item';
+            item.innerHTML = `
+                <div class="file-info">
+                    <div class="file-name">${fileData.name}</div>
+                    <div class="file-size">${formatSize(fileData.size)}</div>
+                </div>
+                <div class="file-status">已接收</div>
+            `;
+            transferList.appendChild(item);
+            // 创建下载链接
+            const a = document.createElement('a');
+            a.href = fileData.data;
+            a.download = fileData.name;
+            a.click();
         }
+
+        // 发送文件
+        function sendFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const fileData = {
+                    type: 'file',
+                    name: file.name,
+                    size: file.size,
+                    data: e.target.result
+                };
+                dataChannel.send(JSON.stringify(fileData));
+                // 添加到传输列表
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${formatSize(file.size)}</div>
+                    </div>
+                    <div class="file-status">已发送</div>
+                `;
+                transferList.appendChild(item);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 文件拖放处理
+        dropArea.addEventListener('click', () => fileInput.click());
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('active');
+        });
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.classList.remove('active');
+        });
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('active');
+            if (e.dataTransfer.files.length) {
+                Array.from(e.dataTransfer.files).forEach(sendFile);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            Array.from(e.target.files).forEach(sendFile);
+        });
+
+        // 复制连接码
+        copyCodeBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(roomCode).then(() => {
+                alert('连接码已复制');
+            });
+        });
 
         // 格式化文件大小
         function formatSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
-            return (bytes / 1048576).toFixed(2) + ' MB';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
         }
 
-        // 手动输入对方信息（极简交互：直接粘贴）
-        window.pasteAnswer = (answerStr) => {
-            const answer = JSON.parse(answerStr);
-            peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
-                .then(() => {
-                    if (answer.type === 'offer') {
-                        return peerConnection.createAnswer()
-                            .then(answer => peerConnection.setLocalDescription(answer));
-                    }
-                })
-                .catch(err => console.error('设置远程信息失败:', err));
-        };
+        // 重置状态
+        function resetState() {
+            createBtn.disabled = false;
+            joinBtn.disabled = false;
+            dropArea.style.display = 'none';
+            codeArea.style.display = 'none';
+            transferList.innerHTML = '';
+            roomCode = '';
+        }
 
-        window.pasteCandidate = (candidateStr) => {
-            const candidate = JSON.parse(candidateStr);
-            peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-                .catch(err => console.error('添加ICE候选失败:', err));
+        // 页面加载时自动读取URL中的连接码
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            if (code) {
+                joinCodeEl.value = code;
+                joinBtn.click();
+            }
         };
     </script>
 </body>
