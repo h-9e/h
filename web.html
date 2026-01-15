@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点对点互传</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", Arial, sans-serif;
+        }
+        body {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 25px 0;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        h2 {
+            color: #444;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .status {
+            padding: 10px;
+            background-color: #e8f4f8;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #2d3748;
+        }
+        .btn {
+            padding: 10px 20px;
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        .btn:hover {
+            background-color: #3182ce;
+        }
+        .btn-secondary {
+            background-color: #718096;
+        }
+        .btn-secondary:hover {
+            background-color: #4a5568;
+        }
+        #messageInput {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        #messageBox {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin: 10px 0;
+            resize: none;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        #fileInput {
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .file-list {
+            margin-top: 15px;
+            padding-left: 20px;
+        }
+        .file-list li {
+            margin: 8px 0;
+            color: #2d3748;
+        }
+        .file-list a {
+            color: #4299e1;
+            text-decoration: none;
+        }
+        .log {
+            color: #718096;
+            font-size: 13px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>局域网文件文字互通</h1>
+        
+        <!-- 连接状态区域 -->
+        <div class="section">
+            <h2>1. 连接设置</h2>
+            <div class="status" id="status">未连接 - 请先点击"创建连接"或"加入连接"</div>
+            <button class="btn" onclick="createConnection()">创建连接</button>
+            <button class="btn btn-secondary" onclick="joinConnection()">加入连接</button>
+            <div class="log" id="connectionLog"></div>
+        </div>
+
+        <!-- 文字消息区域 -->
+        <div class="section">
+            <h2>2. 文字消息</h2>
+            <textarea id="messageBox" readonly placeholder="消息记录..."></textarea>
+            <input type="text" id="messageInput" placeholder="输入要发送的文字...">
+            <button class="btn" onclick="sendMessage()">发送文字</button>
+        </div>
+
+        <!-- 文件传输区域 -->
+        <div class="section">
+            <h2>3. 文件传输</h2>
+            <input type="file" id="fileInput" multiple>
+            <button class="btn" onclick="sendFiles()">发送文件</button>
+            <h3 style="margin-top:15px; font-size:16px;">接收的文件：</h3>
+            <ul class="file-list" id="receivedFiles"></ul>
+        </div>
+    </div>
+
+    <script>
+        // WebRTC核心变量
+        let peerConnection;
+        let dataChannel;
+        let roomId = '';
+        const iceServers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' } // 谷歌免费STUN服务器，用于局域网穿透
+            ]
+        };
+
+        // 日志和状态更新
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+        function addLog(text) {
+            const log = document.getElementById('connectionLog');
+            log.textContent += `\n${new Date().toLocaleTimeString()}: ${text}`;
+        }
+        function addMessage(text, isReceived = true) {
+            const msgBox = document.getElementById('messageBox');
+            const prefix = isReceived ? '[收到] ' : '[发送] ';
+            msgBox.textContent += `${prefix}${text}\n`;
+            msgBox.scrollTop = msgBox.scrollHeight;
+        }
+
+        // 创建连接（主机）
+        function createConnection() {
+            // 生成随机房间ID
+            roomId = Math.random().toString(36).substring(2, 8);
+            updateStatus(`创建连接中 - 房间ID: ${roomId} (请让对方输入此ID)`);
+            addLog(`创建房间，ID: ${roomId}`);
+
+            // 初始化PeerConnection
+            peerConnection = new RTCPeerConnection(iceServers);
+            
+            // 创建数据通道
+            dataChannel = peerConnection.createDataChannel('fileTextChannel');
+            setupDataChannel(dataChannel);
+
+            // 监听ICE候选
+            peerConnection.onicecandidate = (e) => {
+                if (e.candidate) {
+                    addLog(`生成ICE候选: ${JSON.stringify(e.candidate)}`);
+                } else {
+                    addLog('ICE候选收集完成');
+                }
+            };
+
+            // 监听连接状态
+            peerConnection.onconnectionstatechange = () => {
+                updateStatus(`连接状态: ${peerConnection.connectionState} (房间ID: ${roomId})`);
+                addLog(`连接状态变更: ${peerConnection.connectionState}`);
+            };
+
+            // 创建offer
+            peerConnection.createOffer()
+                .then(offer => peerConnection.setLocalDescription(offer))
+                .then(() => {
+                    addLog(`Offer已创建，请将以下信息发给对方：
+RoomID: ${roomId}
+SDP: ${JSON.stringify(peerConnection.localDescription)}`);
+                })
+                .catch(err => {
+                    addLog(`创建Offer失败: ${err}`);
+                    updateStatus(`创建连接失败: ${err}`);
+                });
+        }
+
+        // 加入连接（客户端）
+        function joinConnection() {
+            const inputRoomId = prompt('请输入对方提供的房间ID:');
+            if (!inputRoomId) return;
+            
+            roomId = inputRoomId;
+            updateStatus(`加入连接中 - 房间ID: ${roomId}`);
+            addLog(`尝试加入房间: ${roomId}`);
+
+            // 初始化PeerConnection
+            peerConnection = new RTCPeerConnection(iceServers);
+            
+            // 监听数据通道
+            peerConnection.ondatachannel = (e) => {
+                dataChannel = e.channel;
+                setupDataChannel(dataChannel);
+                addLog('数据通道已连接');
+            };
+
+            // 监听ICE候选
+            peerConnection.onicecandidate = (e) => {
+                if (e.candidate) {
+                    addLog(`生成ICE候选: ${JSON.stringify(e.candidate)}`);
+                }
+            };
+
+            // 监听连接状态
+            peerConnection.onconnectionstatechange = () => {
+                updateStatus(`连接状态: ${peerConnection.connectionState} (房间ID: ${roomId})`);
+                addLog(`连接状态变更: ${peerConnection.connectionState}`);
+            };
+
+            // 获取对方的SDP
+            const remoteSdpStr = prompt('请粘贴对方提供的SDP信息:');
+            if (!remoteSdpStr) return;
+            
+            try {
+                const remoteSdp = JSON.parse(remoteSdpStr);
+                peerConnection.setRemoteDescription(new RTCSessionDescription(remoteSdp))
+                    .then(() => peerConnection.createAnswer())
+                    .then(answer => peerConnection.setLocalDescription(answer))
+                    .then(() => {
+                        addLog(`Answer已创建，请将以下信息发给对方：
+SDP: ${JSON.stringify(peerConnection.localDescription)}`);
+                        // 对方需要手动设置这个Answer作为remoteDescription
+                        alert('请将日志中的SDP信息发给创建连接的一方，让对方在控制台执行：\n' +
+                              `peerConnection.setRemoteDescription(new RTCSessionDescription(${JSON.stringify(peerConnection.localDescription)}))`);
+                    })
+                    .catch(err => {
+                        addLog(`加入连接失败: ${err}`);
+                        updateStatus(`加入连接失败: ${err}`);
+                    });
+            } catch (err) {
+                addLog(`解析SDP失败: ${err}`);
+                updateStatus(`解析SDP失败: ${err}`);
+            }
+        }
+
+        // 设置数据通道
+        function setupDataChannel(channel) {
+            // 通道打开
+            channel.onopen = () => {
+                updateStatus(`数据通道已打开 - 房间ID: ${roomId}`);
+                addLog('数据通道就绪，可以传输数据');
+            };
+
+            // 通道关闭
+            channel.onclose = () => {
+                updateStatus(`数据通道已关闭 - 房间ID: ${roomId}`);
+                addLog('数据通道已关闭');
+            };
+
+            // 接收消息
+            channel.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    // 文字消息
+                    if (data.type === 'text') {
+                        addMessage(data.content);
+                    }
+                    // 文件元数据
+                    else if (data.type === 'file-meta') {
+                        addLog(`收到文件元数据: ${data.name} (${data.size}字节)`);
+                        // 准备接收文件
+                        const fileReader = new FileReader();
+                        const fileParts = [];
+                        let receivedSize = 0;
+
+                        // 监听后续的文件数据
+                        const fileDataHandler = (evt) => {
+                            const fileData = JSON.parse(evt.data);
+                            if (fileData.type === 'file-data' && fileData.id === data.id) {
+                                fileParts.push(fileData.chunk);
+                                receivedSize += fileData.chunk.length;
+                                
+                                // 进度更新
+                                const progress = Math.round((receivedSize / data.size) * 100);
+                                updateStatus(`接收文件: ${data.name} - ${progress}%`);
+                                
+                                // 文件接收完成
+                                if (receivedSize >= data.size) {
+                                    channel.removeEventListener('message', fileDataHandler);
+                                    const fileBlob = new Blob(fileParts, { type: data.type });
+                                    const fileUrl = URL.createObjectURL(fileBlob);
+                                    
+                                    // 添加到文件列表
+                                    const fileList = document.getElementById('receivedFiles');
+                                    const li = document.createElement('li');
+                                    li.innerHTML = `<a href="${fileUrl}" download="${data.name}">${data.name}</a> (${formatFileSize(data.size)})`;
+                                    fileList.appendChild(li);
+                                    
+                                    addLog(`文件接收完成: ${data.name}`);
+                                    updateStatus(`文件接收完成: ${data.name} - 房间ID: ${roomId}`);
+                                    addMessage(`收到文件: ${data.name}`);
+                                }
+                            }
+                        };
+                        channel.addEventListener('message', fileDataHandler);
+                    }
+                } catch (err) {
+                    // 兼容纯文本消息（旧版）
+                    addMessage(e.data);
+                }
+            };
+
+            // 错误处理
+            channel.onerror = (err) => {
+                addLog(`数据通道错误: ${err}`);
+                updateStatus(`数据通道错误: ${err} - 房间ID: ${roomId}`);
+            };
+        }
+
+        // 发送文字消息
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text || !dataChannel || dataChannel.readyState !== 'open') {
+                alert('请先建立连接，或输入有效文字！');
+                return;
+            }
+
+            // 发送JSON格式的文字消息
+            const msg = JSON.stringify({
+                type: 'text',
+                content: text
+            });
+            dataChannel.send(msg);
+            addMessage(text, false);
+            input.value = '';
+        }
+
+        // 发送文件
+        function sendFiles() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+            if (!files || files.length === 0 || !dataChannel || dataChannel.readyState !== 'open') {
+                alert('请先建立连接，或选择要发送的文件！');
+                return;
+            }
+
+            // 逐个发送文件
+            Array.from(files).forEach(file => {
+                addLog(`开始发送文件: ${file.name} (${file.size}字节)`);
+                updateStatus(`发送文件: ${file.name} - 0%`);
+
+                // 生成唯一文件ID
+                const fileId = Math.random().toString(36).substring(2, 10);
+                
+                // 先发送文件元数据
+                const metaData = JSON.stringify({
+                    type: 'file-meta',
+                    id: fileId,
+                    name: file.name,
+                    size: file.size,
+                    mime: file.type || 'application/octet-stream'
+                });
+                dataChannel.send(metaData);
+
+                // 分块读取并发送文件（避免大数据包）
+                const chunkSize = 16384; // 16KB每块
+                const fileReader = new FileReader();
+                let offset = 0;
+
+                fileReader.onload = (e) => {
+                    const chunk = e.target.result;
+                    // 发送文件块
+                    const chunkData = JSON.stringify({
+                        type: 'file-data',
+                        id: fileId,
+                        chunk: chunk
+                    });
+                    dataChannel.send(chunkData);
+
+                    offset += chunkSize;
+                    // 进度更新
+                    const progress = Math.round((offset / file.size) * 100);
+                    updateStatus(`发送文件: ${file.name} - ${Math.min(progress, 100)}%`);
+
+                    // 继续读取下一块
+                    if (offset < file.size) {
+                        readChunk(offset);
+                    } else {
+                        addLog(`文件发送完成: ${file.name}`);
+                        updateStatus(`文件发送完成: ${file.name} - 房间ID: ${roomId}`);
+                        addMessage(`发送文件: ${file.name}`, false);
+                    }
+                };
+
+                fileReader.onerror = (err) => {
+                    addLog(`读取文件失败: ${err}`);
+                    updateStatus(`发送文件失败: ${file.name}`);
+                };
+
+                function readChunk(offset) {
+                    const slice = file.slice(offset, offset + chunkSize);
+                    fileReader.readAsArrayBuffer(slice);
+                }
+
+                // 开始读取第一块
+                readChunk(0);
+            });
+
+            // 清空文件选择
+            fileInput.value = '';
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            else return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        // 页面加载完成提示
+        window.onload = () => {
+            addLog('页面加载完成，支持局域网P2P文字和文件传输');
+            addLog('注意：首次连接需要手动交换SDP信息，后续可直接传输');
+        };
+    </script>
+</body>
+</html>
